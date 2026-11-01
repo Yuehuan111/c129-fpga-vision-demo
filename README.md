@@ -4,15 +4,21 @@
 
 ## 下载完整工程
 
-完整压缩包放在本仓库的 [**Releases / 完整工程下载**](https://github.com/Yuehuan111/c129-fpga-vision-demo/releases/tag/C129-beautified-20261031) 中，文件名为 `C129_beautified_20261031.zip`。它与原始交付包 `C129_演示指标美化版_20261031.zip` 内容完全相同，仅改用英文附件名方便下载。
+**[点击下载完整工程 ZIP](https://github.com/Yuehuan111/c129-fpga-vision-demo/archive/refs/tags/C129-beautified-20261031.zip)**
 
-SHA256：
+也可以点击仓库右上角 **Code → Download ZIP**，或进入 [Releases](https://github.com/Yuehuan111/c129-fpga-vision-demo/releases/tag/C129-beautified-20261031) 下载 **Source code (zip)**。
+
+本仓库包含完整交付内容，包括 PDS 工程、RTL、IP、上位机、标定、烧录文件、编译数据库及报告。GitHub 的自动附件虽然显示为 “Source code”，本项目下载到的内容也包括上述已编译产物，并非只有源码。
+
+解压后进入 `C129_compiled_final_20261031/`，按照其中的 `使用说明.txt` 配置环境，再运行 `start_demo.cmd`。
+
+仓库中的 [`C129_compiled_final_20261031/`](C129_compiled_final_20261031/) 与原始交付包 `C129_演示指标美化版_20261031.zip` 中的 **485 个文件逐个字节一致**。本次上传没有修改上位机、FPGA 代码或参数，也没有重新编译。
+
+原始交付 ZIP 的 SHA256（用于核对原包，不是 GitHub 自动生成 ZIP 的校验值）：
 
 ```text
 adf5fa12f38296ff8132d72a4cb5498f32f0b8517b7b9f976aeb1955aef69be3
 ```
-
-仓库中的 [`C129_compiled_final_20261031/`](C129_compiled_final_20261031/) 也保留了完整解压内容，便于直接浏览代码、PDS 工程、位流和已有构建报告。本次上传没有修改上位机、FPGA 代码或参数，也没有重新编译。
 
 ## 系统功能与分工
 
