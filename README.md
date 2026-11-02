@@ -4,20 +4,31 @@
 
 ## 下载完整工程
 
-**[点击下载完整工程 ZIP](https://github.com/Yuehuan111/c129-fpga-vision-demo/archive/refs/tags/C129-beautified-20261031.zip)**
+**当前版本：2026-11-02 拍照录像更新版。**
 
-也可以点击仓库右上角 **Code → Download ZIP**，或进入 [Releases](https://github.com/Yuehuan111/c129-fpga-vision-demo/releases/tag/C129-beautified-20261031) 下载 **Source code (zip)**。
+**[点击下载完整工程 ZIP](https://github.com/Yuehuan111/c129-fpga-vision-demo/archive/refs/tags/C129-beautified-recording-20261102.zip)**
 
-本仓库包含完整交付内容，包括 PDS 工程、RTL、IP、上位机、标定、烧录文件、编译数据库及报告。GitHub 的自动附件虽然显示为 “Source code”，本项目下载到的内容也包括上述已编译产物，并非只有源码。
+也可以点击 **Code → Download ZIP**，或进入 [最新发布版本](https://github.com/Yuehuan111/c129-fpga-vision-demo/releases/tag/C129-beautified-recording-20261102) 下载 **Source code (zip)**。
 
-解压后进入 `C129_compiled_final_20261031/`，按照其中的 `使用说明.txt` 配置环境，再运行 `start_demo.cmd`。
+本仓库包含完整交付内容，包括 PDS 工程、RTL、IP、上位机、标定、烧录文件、编译数据库及报告。GitHub 自动附件虽然显示为 “Source code”，下载内容也包括上述已编译产物。
 
-仓库中的 [`C129_compiled_final_20261031/`](C129_compiled_final_20261031/) 与原始交付包 `C129_演示指标美化版_20261031.zip` 中的 **485 个文件逐个字节一致**。本次上传没有修改上位机、FPGA 代码或参数，也没有重新编译。
+解压后进入 `C129_compiled_final_20261031/`，按照其中的 `使用说明.txt` 配置环境，再运行 `start_demo.cmd`。工程目录保留原名称，当前包的更新日期为 2026-11-02。
 
-原始交付 ZIP 的 SHA256（用于核对原包，不是 GitHub 自动生成 ZIP 的校验值）：
+仓库中的 [`C129_compiled_final_20261031/`](C129_compiled_final_20261031/) 与用户提供的 `C129_演示指标美化版_拍照录像更新_20261102.zip` 中的 **493 个文件逐个字节一致**。本次上传不再修改包内代码、参数、说明或构建产物，也没有重新编译。
+
+### 本次更新
+
+- 上位机新增 **F8 拍照、F9 开始／停止录像**，以及照片／录像文件夹入口和录像状态显示。
+- 切换视频源及关闭软件时完成录像保存收尾；具体操作见包内 [`更新说明_20261102.txt`](C129_compiled_final_20261031/更新说明_20261102.txt)。
+- 相较 2026-10-31 美化版，新增 8 个文件、修改 3 个文件、删除 0 个文件；FPGA 工程、参数与烧录文件保持一致。
+- 包内自带 7 项离线测试通过记录及离线录像样例；本次发布仅核对交付内容，未新增硬件测试结论。样例由本地 PNG 重复输入生成，其录像文件帧率不代表 FPGA 每秒新矫正帧率。
+
+[上一版归档（2026-10-31）](https://github.com/Yuehuan111/c129-fpga-vision-demo/releases/tag/C129-beautified-20261031) 保留供回溯。
+
+原始交付 ZIP 的 SHA256（用于核对用户原包，不是 GitHub 自动 ZIP 的校验值）：
 
 ```text
-adf5fa12f38296ff8132d72a4cb5498f32f0b8517b7b9f976aeb1955aef69be3
+41405211a6b1eabe8253b91e1f5ac5e42f7c2729dd5d15966ae8be681480a8c1
 ```
 
 ## 系统功能与分工

@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import multiprocessing
+import os
 import time
+from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog
@@ -13,6 +15,7 @@ from demo_controls import DemoController, display_status, independent_status, bo
 from demo_results import ModeResults
 from demo_metrics import DemoMetrics
 from demo_theme import apply_demo_theme, confirmed_mode
+from preview_recording import PreviewRecorder
 from roll_crop import DEMO_ROLL_CROP, checked_demo_crop
 
 
@@ -28,6 +31,10 @@ class DemoControlPanel(UnifiedControlPanel):
         self.metrics_recording = False
         self.metrics_visible = False
         self._history_frame_id = None
+        self.preview_recorder = None
+        self._recording_source = None
+        self._recording_frame_key = None
+        self._close_after_recording = False
         super().__init__(window, offline=offline)
         self.settings_path = ROOT/'settings/demo_preferences.json'
         self.demo_controller = DemoController(lambda: self.session, self.notify,
@@ -59,6 +66,9 @@ class DemoControlPanel(UnifiedControlPanel):
         window.bind('<F1>', lambda e: self.tabs.select(self.demo_page))
         window.bind('<F2>', lambda e: self.tabs.select(self.settings_page))
         window.bind('<F3>', lambda e: self.show_advanced())
+        # Tk's application-wide binding also reaches the fullscreen Toplevel.
+        window.bind_all('<F8>', self.take_photo, add='+')
+        window.bind_all('<F9>', self.toggle_recording, add='+')
         self.notify('先连接设备并导入所需参数；主界面直接切换演示模式。' if not offline
                     else '离线界面预览：未连接串口或采集卡，照片仅用于查看界面布局。')
         self.window.after(33, self.pump_visual_frames)
@@ -127,8 +137,25 @@ class DemoControlPanel(UnifiedControlPanel):
             for widget in self.video_panel.grid_slaves(row=row):
                 widget.grid_remove()
         self.panels.append(self.video_panel)
-        ttk.Label(page, text='双击画面全屏，Esc / 双击返回    ·    IMU：固定测试卡，相机与 IMU 一起转动    ·    自适应：改变照明',
-                  style='Subtle.TLabel', wraplength=1220).grid(row=4, column=0, sticky='w', pady=(10, 2))
+        photo_bar = ttk.Frame(page)
+        photo_bar.grid(row=4, column=0, sticky='ew', pady=(10, 2))
+        photo_bar.columnconfigure(4, weight=1)
+        ttk.Label(photo_bar, text='双击全屏，Esc / 双击返回 · F8 拍照 · F9 开始 / 停止录像\nIMU：固定测试卡，相机与 IMU 一起转动；自适应：改变照明',
+                  style='Subtle.TLabel', wraplength=900).grid(row=1, column=0, columnspan=5, sticky='w', pady=(5, 0))
+        self.photo_button = ttk.Button(photo_bar, text='拍照 (F8)',
+                                       command=self.take_photo)
+        self.photo_button.grid(row=0, column=0, padx=(0, 8))
+        self.photo_folder_button = ttk.Button(photo_bar, text='照片文件夹',
+            command=lambda: self.act(self.open_photo_directory))
+        self.photo_folder_button.grid(row=0, column=1, padx=(0, 16))
+        self.record_button = ttk.Button(photo_bar, text='开始录像 (F9)', command=self.toggle_recording)
+        self.record_button.grid(row=0, column=2, padx=(0, 8))
+        self.video_folder_button = ttk.Button(photo_bar, text='录像文件夹',
+            command=lambda: self.act(self.open_video_directory))
+        self.video_folder_button.grid(row=0, column=3)
+        self.recording_status = tk.StringVar(value='MP4 · 仅画面，无声音')
+        ttk.Label(photo_bar, textvariable=self.recording_status,
+                  style='Subtle.TLabel', wraplength=300).grid(row=0, column=4, sticky='e', padx=(10, 0))
         self.device_status = tk.StringVar(value='视频：未打开   |   FPGA：串口未连接   |   IMU：未连接')
         ttk.Label(page, textvariable=self.device_status, style='Subtle.TLabel').grid(row=5, column=0, sticky='w')
         self.history_status = tk.StringVar(value='单路 HDMI；各模式历史快照来自不同时间，不是同帧五路输出。')
@@ -139,6 +166,102 @@ class DemoControlPanel(UnifiedControlPanel):
         self.imu_text = tk.StringVar()
         self.board_text = tk.StringVar()
         self.output_text = tk.StringVar()
+
+    def take_photo(self, _event=None):
+        self.act(self.save_preview_photo)
+        return 'break'
+
+    def save_preview_photo(self):
+        """Save native pixels in the displayed orientation; keep capture data intact."""
+        import cv2
+        frame = self.video_panel.get_frame_copy()
+        if frame is None:
+            raise ValueError('当前没有可拍照的画面，请先打开实时画面或本地照片。')
+        if self.video_panel.preview_rotate_180.get():
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
+        ok, encoded = cv2.imencode('.png', frame)
+        if not ok:
+            raise RuntimeError('照片编码失败，请重试。')
+        directory = ROOT / 'results' / 'photos'
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / datetime.now().strftime('photo_%Y%m%d_%H%M%S_%f.png')
+        # Exclusive creation protects an existing photo even if the clock repeats.
+        with path.open('xb') as output:
+            output.write(encoded.tobytes())
+        return f'照片已保存（{frame.shape[1]}×{frame.shape[0]}，方向与预览一致）：{path}'
+
+    def open_photo_directory(self):
+        directory = ROOT / 'results' / 'photos'
+        directory.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(directory))
+
+    def toggle_recording(self, _event=None):
+        self.act(self.toggle_preview_recording)
+        return 'break'
+
+    def toggle_preview_recording(self):
+        if self.preview_recorder is not None:
+            self.preview_recorder.request_stop()
+            self.record_button.configure(text='正在保存…', state='disabled')
+            self.recording_status.set('正在保存录像…')
+            return '正在完成 MP4 文件，请稍候。'
+        status = self.video_panel.capture_status()
+        packet = self.video_panel.get_frame_observation()
+        if (not packet or not status['live'] or status['stale'] or
+                packet['source_kind'] not in ('camera', 'video')):
+            raise ValueError('请先打开正在更新的实时画面或本地视频，再开始录像。')
+        rotate = bool(self.video_panel.preview_rotate_180.get())
+        path = ROOT / 'results' / 'videos' / datetime.now().strftime('video_%Y%m%d_%H%M%S_%f.mp4')
+        self.preview_recorder = PreviewRecorder(path, packet['frame'], rotate=rotate)
+        self._recording_source = (packet['generation'], packet['source_kind'])
+        self._recording_frame_key = (packet['frame_id'], rotate)
+        self.record_button.configure(text='停止录像 (F9)')
+        self.recording_status.set('录像中 00:00 · 无声音')
+        return '录像已开始；按 F9 或“停止录像”保存。'
+
+    def open_video_directory(self):
+        directory = ROOT / 'results' / 'videos'
+        directory.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(directory))
+
+    def pump_recording(self):
+        recorder = self.preview_recorder
+        if recorder is None:
+            return
+        if recorder.done.is_set():
+            self.preview_recorder = None
+            self.record_button.configure(text='开始录像 (F9)', state='normal')
+            if recorder.error:
+                self.recording_status.set('录像异常，请查看底部提示')
+                self.notify(f'录像异常：{recorder.error}；保存位置：{recorder.path.parent}')
+            else:
+                self.recording_status.set('录像已保存 · 无声音')
+                self.notify(f'录像已保存：{recorder.path}（{recorder.elapsed:.1f} 秒；{recorder.stop_reason}）')
+            if self._close_after_recording:
+                self._close_after_recording = False
+                if not recorder.error:
+                    self.close()
+            return
+        if recorder.stopping:
+            self.recording_status.set('正在保存录像…')
+            self.record_button.configure(text='正在保存…', state='disabled')
+            return
+        seconds = int(recorder.elapsed)
+        self.recording_status.set(f'录像中 {seconds // 60:02d}:{seconds % 60:02d} · 无声音')
+        status = self.video_panel.capture_status()
+        packet = self.video_panel.get_frame_observation()
+        if (not packet or not status['live'] or status['stale'] or
+                (packet['generation'], packet['source_kind']) != self._recording_source):
+            recorder.request_stop('视频源停止、切换或超过 1.5 秒没有新帧')
+            return
+        rotate = bool(self.video_panel.preview_rotate_180.get())
+        key = (packet['frame_id'], rotate)
+        if key != self._recording_frame_key:
+            try:
+                recorder.submit(packet['frame'], rotate=rotate)
+                self._recording_frame_key = key
+            except Exception as error:
+                recorder.request_stop(str(error))
 
     def build_metrics_panel(self, parent):
         # Presentation-only view of the existing session; no device access.
@@ -459,6 +582,9 @@ class DemoControlPanel(UnifiedControlPanel):
     def pump_visual_frames(self):
         if self.closing:
             return
+        self.pump_recording()
+        if self.closing:
+            return
         if self.visual_worker is not None:
             packet = self.video_panel.get_frame_observation()
             if packet and packet['frame_id'] != self._vision_frame_id:
@@ -605,6 +731,11 @@ class DemoControlPanel(UnifiedControlPanel):
         super().stop_all_requests()
 
     def close(self):
+        if self.preview_recorder is not None:
+            self._close_after_recording = True
+            self.preview_recorder.request_stop('关闭上位机，自动保存')
+            self.recording_status.set('正在保存录像，完成后关闭…')
+            return
         if self.metrics_recording:
             try:
                 path = self.demo_metrics.export(ROOT / 'results' / 'demo_evidence', data=self.snapshot_or_none())
